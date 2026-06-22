@@ -61,6 +61,6 @@ def publish_events(
     if flush:
         remaining = producer.flush(timeout=30.0)
         if remaining > 0:
-            log.error("flush_incomplete", undelivered=remaining)
+            raise RuntimeError(f"publish flush incomplete: {remaining} messages undelivered")
     log.info("published", count=count, topic=topic or "by-type")
     return count

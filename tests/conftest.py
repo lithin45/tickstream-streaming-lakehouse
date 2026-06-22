@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import os
 import uuid
+from pathlib import Path
 
 import pytest
 
-from tickstream.config import Settings, get_settings
+from tickstream.config import REPO_ROOT, Settings, get_settings
 from tickstream.kafka_utils import wait_for_broker
 
 
@@ -44,3 +45,9 @@ def broker(settings: Settings) -> Settings:
 def unique_topic() -> str:
     """A throwaway topic name unique to one test, so 'earliest' reads exactly what we wrote."""
     return f"test.roundtrip.{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture(scope="session")
+def fixture_path() -> Path:
+    """Path to the committed recorded-stream fixture used by replay/normalization tests."""
+    return REPO_ROOT / "fixtures" / "recorded_stream.jsonl"

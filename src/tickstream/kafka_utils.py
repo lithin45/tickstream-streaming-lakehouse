@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterable
 
-from confluent_kafka import Consumer, KafkaException, Producer
+from confluent_kafka import Consumer, KafkaException, Producer, TopicPartition
 from confluent_kafka.admin import AdminClient, NewTopic
 
 from tickstream.config import KafkaSettings, Settings
@@ -142,3 +142,50 @@ def _delivery_report(err: object, msg: object) -> None:
 def delivery_report(err: object, msg: object) -> None:
     """Public alias for the delivery callback."""
     _delivery_report(err, msg)
+
+
+class DeliveryCounter:
+    """Stateful delivery callback that counts acks and failures.
+
+    confluent-kafka's ``flush()`` only reports how many messages remain *queued*; a message
+    that the broker rejected after being sent is already off the queue, so ``flush()`` alone
+    can't tell you everything landed. Pass an instance as ``on_delivery`` and check
+    ``failed == 0`` to be sure.
+    """
+
+    def __init__(self) -> None:
+        self.delivered = 0
+        self.failed = 0
+
+    def __call__(self, err: object, _msg: object) -> None:
+        if err is not None:
+            self.failed += 1
+            log.error("delivery_failed", error=str(err))
+        else:
+            self.delivered += 1
+
+
+def end_offset_total(settings: Settings, topics: Iterable[str], *, timeout: float = 10.0) -> int:
+    """Sum the high-watermark offsets across all partitions of ``topics``.
+
+    Used by tests to count messages that actually landed, independent of how many runs have
+    accumulated (no consuming required).
+    """
+    consumer = build_consumer(
+        settings, group_id="tickstream-offset-probe", enable_auto_commit=False
+    )
+    total = 0
+    try:
+        cluster = consumer.list_topics(timeout=timeout)
+        for topic in topics:
+            meta = cluster.topics.get(topic)
+            if meta is None:
+                continue
+            for partition in meta.partitions:
+                _low, high = consumer.get_watermark_offsets(
+                    TopicPartition(topic, partition), timeout=timeout
+                )
+                total += high
+    finally:
+        consumer.close()
+    return total

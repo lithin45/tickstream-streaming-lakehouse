@@ -51,6 +51,10 @@ jobs:
         # round-trip in-container; exits non-zero on any mismatch.
         run: docker compose --profile demo run --rm --build demo
 
+      - name: Replay fixture in-container (offline reproducibility)
+        # Proves a reviewer with no network can reproduce the pipeline from the baked-in fixture.
+        run: docker compose --profile replay run --rm replay
+
       - name: Tear down
         if: always()
         run: docker compose down -v

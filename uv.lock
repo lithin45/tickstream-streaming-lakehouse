@@ -2016,6 +2016,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "structlog" },
     { name = "typer" },
+    { name = "websockets" },
 ]
 
 [package.optional-dependencies]
@@ -2029,7 +2030,6 @@ all = [
     { name = "pyiceberg", extra = ["pyarrow", "sql-sqlite"] },
     { name = "quixstreams" },
     { name = "streamlit" },
-    { name = "websockets" },
 ]
 dbt = [
     { name = "dbt-duckdb" },
@@ -2043,9 +2043,6 @@ processing = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "quixstreams" },
-]
-producer = [
-    { name = "websockets" },
 ]
 quality = [
     { name = "great-expectations" },
@@ -2086,11 +2083,11 @@ requires-dist = [
     { name = "quixstreams", marker = "extra == 'processing'", specifier = ">=3.0,<4.0" },
     { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.36" },
     { name = "structlog", specifier = ">=24.1" },
-    { name = "tickstream", extras = ["producer", "processing", "lake", "dbt", "quality", "ui"], marker = "extra == 'all'" },
+    { name = "tickstream", extras = ["processing", "lake", "dbt", "quality", "ui"], marker = "extra == 'all'" },
     { name = "typer", specifier = ">=0.12" },
-    { name = "websockets", marker = "extra == 'producer'", specifier = ">=12.0" },
+    { name = "websockets", specifier = ">=12.0" },
 ]
-provides-extras = ["producer", "processing", "lake", "dbt", "quality", "ui", "all"]
+provides-extras = ["processing", "lake", "dbt", "quality", "ui", "all"]
 
 [package.metadata.requires-dev]
 dev = [

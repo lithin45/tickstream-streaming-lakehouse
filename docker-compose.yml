@@ -76,5 +76,41 @@ services:
     profiles: ["demo"]
     restart: "no"
 
+  # ---------------------------------------------------------------------------
+  # Live producer (profile: live) — exchange WebSocket -> Redpanda, reconnecting.
+  # Needs outbound network; started for the live demo, not for tests.
+  # ---------------------------------------------------------------------------
+  producer:
+    image: tickstream:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    command: ["produce"]
+    profiles: ["live"]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Offline replay (profile: replay) — feed the baked-in fixture through Redpanda.
+  # No network; reproduces the pipeline deterministically inside the image.
+  # ---------------------------------------------------------------------------
+  replay:
+    image: tickstream:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    command: ["replay"]
+    profiles: ["replay"]
+    restart: "no"
+
 volumes:
   redpanda_data:

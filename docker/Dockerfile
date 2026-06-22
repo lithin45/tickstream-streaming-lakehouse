@@ -1,6 +1,7 @@
 # Single image used by all TickStream Python services (producer/processor/dashboard).
-# Dependencies are installed from the committed uv.lock for reproducible builds — the image
-# gets the SAME resolved versions that CI and local dev validated.
+# Dependencies are installed from the committed uv.lock for reproducible dependency installs —
+# the image gets the SAME resolved versions that CI and local dev validated. (The base image
+# tag and uv version are pinned below so the build inputs are stable too.)
 #
 # Per-service dependency extras are selected with the EXTRA_FLAGS build arg, e.g.
 #   docker build --build-arg EXTRA_FLAGS="--extra processing" ...
@@ -12,8 +13,8 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv
 
-# uv for fast, reproducible installs.
-RUN pip install --no-cache-dir uv
+# uv (pinned) for fast, reproducible installs.
+RUN pip install --no-cache-dir uv==0.11.23
 
 WORKDIR /app
 
@@ -21,6 +22,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY config ./config
+# Baked-in fixture makes `replay` self-contained and fully offline inside the image.
+COPY fixtures ./fixtures
 
 # --frozen: install the locked versions without re-resolving. --no-dev: skip test/lint deps.
 ARG EXTRA_FLAGS=""

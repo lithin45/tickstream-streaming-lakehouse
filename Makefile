@@ -6,7 +6,7 @@ COMPOSE := docker compose
 UV := uv
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down ps logs console test test-unit demo demo-container record replay lint format format-check clean
+.PHONY: help install up down ps logs console test test-unit demo demo-container record replay produce lint format format-check clean
 
 help: ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -43,11 +43,16 @@ demo: up install ## Phase 1 demo (host): publish hand-crafted events and read th
 demo-container: up ## Phase 1 demo in Docker: build the image and run the round-trip in-container.
 	$(COMPOSE) --profile demo run --rm --build demo
 
-record: ## (Phase 2) Record a short live stream to fixtures/recorded_stream.jsonl.
-	@echo "make record is implemented in Phase 2 (producer + replay harness)."
+RECORD_SECONDS ?= 60
 
-replay: ## (Phase 2+) Replay the recorded fixture end-to-end, offline.
-	@echo "make replay is implemented in Phase 2 (producer + replay harness)."
+record: install ## Record a short LIVE stream to fixtures/recorded_stream.jsonl (needs network).
+	$(UV) run tickstream record --seconds $(RECORD_SECONDS)
+
+replay: up install ## Replay the committed fixture through Redpanda (offline, deterministic).
+	$(UV) run tickstream replay
+
+produce: up install ## Run the LIVE producer (exchange WebSocket -> Redpanda). Ctrl-C to stop.
+	$(UV) run tickstream produce
 
 lint: install ## Lint with ruff.
 	$(UV) run ruff check .
