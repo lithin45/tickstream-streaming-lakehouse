@@ -1,0 +1,80 @@
+# TickStream local stack. `make up` starts Redpanda (+ Console); later phases add the
+# producer, stream processor, and dashboard services (see profiles).
+#
+# Isolated from any other local compose project via the fixed project name below.
+name: tickstream
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redpanda — single-node Kafka-API broker (no JVM, no Zookeeper).
+  # Dual listeners: in-container clients use redpanda:9092; host/tests use localhost:19092.
+  # ---------------------------------------------------------------------------
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.1
+    container_name: tickstream-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr=internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "19092:19092"   # Kafka API (host)
+      - "18081:18081"   # Schema Registry (host)
+      - "18082:18082"   # Pandaproxy / REST (host)
+      - "9644:9644"     # Admin API
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 5s
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  # ---------------------------------------------------------------------------
+  # Redpanda Console — web UI for topics/messages (handy for the demo/portfolio).
+  # ---------------------------------------------------------------------------
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.8.2
+    container_name: tickstream-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      CONFIG_FILEPATH: ""
+    ports:
+      - "8080:8080"
+
+  # ---------------------------------------------------------------------------
+  # Demo one-shot (profile: demo) — proves the round-trip inside compose by building
+  # the image and running the strict `demo` command (publish -> consume -> assert exact,
+  # on a fresh topic). Exits non-zero on any mismatch. Wired into CI for image coverage.
+  # ---------------------------------------------------------------------------
+  demo:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: tickstream:latest
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    command: ["demo"]
+    profiles: ["demo"]
+    restart: "no"
+
+volumes:
+  redpanda_data:

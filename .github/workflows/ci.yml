@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# All jobs run fully offline w.r.t. market data: the broker is started from compose and
+# every test runs against committed fixtures — never a live exchange socket.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        # --locked fails the build if uv.lock has drifted from pyproject.toml.
+        run: uv sync --locked
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Start Redpanda
+        run: docker compose up -d --wait redpanda
+
+      - name: Run tests
+        env:
+          KAFKA_BOOTSTRAP_SERVERS: localhost:19092
+          # In CI the broker is guaranteed up, so a *skipped* integration test is a failure.
+          TICKSTREAM_REQUIRE_BROKER: "1"
+        run: uv run pytest -v
+
+      - name: Build + run in-container demo
+        # Builds docker/Dockerfile (image-build + uv.lock coverage) and runs the strict
+        # round-trip in-container; exits non-zero on any mismatch.
+        run: docker compose --profile demo run --rm --build demo
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

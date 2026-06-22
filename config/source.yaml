@@ -1,0 +1,40 @@
+# TickStream data-source configuration.
+#
+# Switch exchanges by changing `exchange` below. Both feeds are public and need no API key.
+# Do NOT redistribute the raw feed — fixtures committed to this repo are small samples only.
+
+# Active exchange: "coinbase" (default) or "binance_us" (US-region fallback).
+exchange: coinbase
+
+# Symbols to subscribe to. Kept small to keep volume at thousands of msgs/min.
+symbols:
+  - BTC-USD
+  - ETH-USD
+  - SOL-USD
+
+# Logical channels to subscribe to (normalized internally). Trades + ticker are core;
+# level2 (order book) is a stretch goal used by order-book-imbalance metrics.
+channels:
+  - trades
+  - ticker
+
+exchanges:
+  coinbase:
+    ws_url: wss://advanced-trade-ws.coinbase.com
+    # Coinbase Advanced Trade channel names.
+    channel_map:
+      trades: market_trades
+      ticker: ticker
+      level2: level2
+    # Symbols are already in Coinbase product_id form (BTC-USD).
+    symbol_style: dash
+
+  binance_us:
+    ws_url: wss://stream.binance.us:9443/stream
+    # Binance.US stream suffixes (lower-cased symbol + suffix).
+    channel_map:
+      trades: trade
+      ticker: bookTicker
+      level2: depth
+    # Binance uses concatenated symbols (BTCUSD); the producer strips the dash.
+    symbol_style: concat

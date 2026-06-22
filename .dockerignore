@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+lake_data
+warehouse
+*.duckdb
+dbt/target
+dbt/dbt_packages
+dbt/logs
+.DS_Store
+docs/img/*.gif
