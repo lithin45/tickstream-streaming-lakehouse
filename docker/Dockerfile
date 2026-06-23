@@ -27,9 +27,9 @@ COPY dbt ./dbt
 COPY fixtures ./fixtures
 
 # --frozen: install the locked versions without re-resolving. --no-dev: skip test/lint deps.
-# Extras cover producer/processor/lake/dbt/quality so the full offline pipeline (incl. gold marts
-# and the data-contract + SLA step) runs in-container.
-ARG EXTRA_FLAGS="--extra processing --extra lake --extra dbt --extra quality"
+# Extras cover producer/processor/lake/dbt/quality/ui so the full offline pipeline (incl. gold
+# marts, the data-contract + SLA step, and the Streamlit dashboard) runs in-container.
+ARG EXTRA_FLAGS="--extra processing --extra lake --extra dbt --extra quality --extra ui"
 RUN uv sync --frozen --no-dev ${EXTRA_FLAGS}
 
 # Put the venv on PATH so the `tickstream` console script resolves.

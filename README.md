@@ -7,13 +7,12 @@ analytics with windowed stream processing, enforces data contracts (quarantining
 records), and lands query-ready lakehouse tables — Redpanda → Quix Streams → bronze/silver
 Parquet → gold Apache Iceberg → DuckDB / Streamlit.
 
-> **Status:** under active construction. **Phases 1–5 are complete** — see
-> [Build phases](#build-phases). A recorded-fixture **replay harness** makes the whole
+> **Status: complete (all 6 phases).** A recorded-fixture **replay harness** makes the whole
 > pipeline reproducible offline with no network: `make replay` feeds a committed sample of
 > real Coinbase market data through Redpanda → bronze Parquet **and** **Quix Streams
 > tumbling-window analytics** → **dbt-built silver/gold marts** → **Apache Iceberg** gold tables
-> queried with **DuckDB SQL** (incl. time travel), with **data contracts + a quarantine path**
-> and **SLAs asserted against the replay** — deterministically.
+> queried with **DuckDB SQL** (incl. time travel), with **data contracts + a quarantine path**,
+> **SLAs asserted against the replay**, and a live **Streamlit dashboard** — deterministically.
 
 **SLA result (latest `make replay`):** end-to-end ingest→gold latency **p95 30.8 s** (< 60 s) ·
 **100%** of expected windows produced (≥ 99%) · **0** contract violations reached gold → **PASS**.
@@ -87,8 +86,6 @@ typed, deduplicated (dbt model) · _gold_ = windowed microstructure marts as Ice
 | **Apache Iceberg** | plain Parquet | Schema evolution, snapshots/time-travel, compaction for the gold marts. |
 | **DuckDB + dbt** | Spark | Embedded SQL engine + SQL marts; zero infra, fast analytics over the lake. |
 
-_(Expanded in the Phase 6 README.)_
-
 ---
 
 ## Quick start
@@ -96,7 +93,8 @@ _(Expanded in the Phase 6 README.)_
 ```bash
 make up             # start Redpanda (+ Console at http://localhost:8080), wait until healthy
 make test           # run the full test suite against the live broker
-make replay         # OFFLINE medallion: replay -> Quix windows -> bronze -> dbt silver/gold -> Iceberg
+make replay         # OFFLINE medallion: replay -> Quix windows -> bronze -> dbt silver/gold -> Iceberg + SLAs
+make dashboard      # Streamlit dashboard at http://localhost:8502 (VWAP/spread/volume + time-travel)
 make query          # DuckDB SQL over the gold Iceberg table + an Iceberg time-travel query
 make process        # run the live Quix Streams windowed processor
 make demo           # host round-trip: publish hand-crafted events and read them back (exact)
@@ -199,6 +197,21 @@ Three **SLAs are measured and asserted against the replay** ([quality/sla.py](sr
 > **Pandera** for its clean row-level quarantine split (failing rows by index), which makes the
 > "valid vs quarantined" boundary explicit and easy to test.
 
+### Dashboard
+
+A **Streamlit** dashboard ([ui/dashboard.py](src/tickstream/ui/dashboard.py)) reads the gold
+Iceberg marts and shows, per symbol: latest VWAP / spread cards, **VWAP / trade-volume / bid-ask
+spread time-series** (1-min windows), the **SLA result** from the last pipeline run, and an
+**Apache Iceberg time-travel** panel (current rows vs a prior snapshot). It has an auto-refresh
+control so it updates as the lake is repopulated.
+
+```bash
+make replay      # populate the lakehouse (gold) first
+make dashboard   # serve at http://localhost:8502  (host)
+# or, fully containerized (builds gold in-container, then serves):
+docker compose --profile dashboard up   # http://localhost:8502
+```
+
 Requirements: Docker + `docker compose`, and [`uv`](https://github.com/astral-sh/uv).
 The project pins **Python 3.11** (managed by uv). Ports used: Redpanda `19092`,
 Console `8080`, dashboard `8502` (later). No ports clash with common local services.
@@ -206,12 +219,12 @@ Console `8080`, dashboard `8502` (later). No ports clash with common local servi
 ### Useful commands
 
 ```bash
-make install      # uv sync (core + dev deps)
+make install      # uv sync --all-extras (core + all extras + dev)
 make test-unit    # unit tests only — no broker required
 make lint         # ruff check
 make format       # ruff format
 tickstream --help # CLI: health · topics-create · demo · record · replay · produce · process ·
-                  #      bronze · build-marts · query · contracts · pipeline
+                  #      bronze · build-marts · query · contracts · pipeline   (+ make dashboard)
 ```
 
 ---
@@ -234,7 +247,7 @@ sample fixtures are committed, for offline tests and replay.
 | 3 | Quix Streams tumbling-window microstructure metrics (VWAP/spread/volume/count) on event time, with watermarks + late-data handling; bronze Parquet | ✅ done |
 | 4 | dbt-duckdb silver/gold marts (SQL windowing) + Apache Iceberg gold tables + DuckDB SQL + time-travel | ✅ done |
 | 5 | Data contracts (Pandera) + quarantine path + SLA assertions (p95 latency, % windows, 0 violations to gold) | ✅ done |
-| 6 | Streamlit dashboard + polished README/diagram | ⬜ |
+| 6 | Streamlit dashboard (live VWAP/spread/volume + Iceberg time-travel + SLA) + polished README/diagram | ✅ done |
 
 ---
 
@@ -257,15 +270,32 @@ src/tickstream/
   lake/            # bronze.py / windows.py Parquet sinks; marts.py (dbt) + iceberg.py (gold)
   query/           # duck.py — DuckDB SQL over gold Iceberg + time travel
   quality/         # contract.py (Pandera) + quarantine.py + sla.py
+  ui/              # dashboard.py — Streamlit (gold marts + SLA + Iceberg time-travel)
   pipeline.py      # `tickstream pipeline` — replay -> bronze -> windows -> marts -> contracts/SLA
 dbt/               # dbt-duckdb project: silver views + gold_window_metrics (SQL) + tests
-  quality/         # (Phase 5) contracts + quarantine + SLAs
-  query/ ui/       # (Phase 4/6) DuckDB queries + Streamlit dashboard
 config/source.yaml # exchange / symbols / channels
-docker-compose.yml # Redpanda + Console (+ later services)
-Makefile           # up / down / test / demo / record / replay / lint / format
+docker-compose.yml # Redpanda + Console + producer/processor/pipeline/ui services
+Makefile           # up/down/test/replay/process/marts/query/contracts/dashboard/...
 tests/             # pytest (unit + broker integration)
 ```
+
+## Limitations & future work
+
+- **Replay latency includes processing padding.** The offline `make replay` SLA latency (~31 s
+  p95) reflects the bounded drain/dbt wall-clock of a batch reproduction, not a live per-event
+  distribution; a live deployment would measure event-by-event. Still comfortably < 60 s.
+- **Stretch metrics not built:** realized volatility and **order-book imbalance** (the `level2`
+  channel) are wired in config but not yet computed — the natural next windowed metrics.
+- **Gold is rebuilt, not incremental.** dbt rebuilds the gold table each run; an incremental
+  materialization (or streaming upserts into Iceberg) would suit a continuously-running deployment.
+- **Single-node, local-only by design.** Redpanda runs `--smp 1`; the DuckDB/Iceberg catalog is a
+  local SQLite file. Multi-broker, a shared catalog (REST/Glue), and partitioned compaction are the
+  path to a clustered deployment.
+- **Observability is logs + SLA metrics.** Structured JSON logs and the SLA report cover the basics;
+  a Prometheus/Grafana stack (messages/sec, consumer lag, windows emitted, quarantined count) is the
+  documented optional next step.
+- **Live dashboard reads the batch gold marts.** The Streamlit dashboard reads the gold Iceberg
+  table; a true tick-by-tick live view would read the `metrics.windowed` topic directly.
 
 ## License
 

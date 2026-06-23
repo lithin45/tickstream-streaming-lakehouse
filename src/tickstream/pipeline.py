@@ -2,11 +2,13 @@
 
 Runs the recorded fixture through the whole stack with no network and deterministically:
 
-    fixture -> replay (raw topics) -> bronze Parquet
-                                   -> Quix windows -> metrics.windowed -> windows Parquet
+    fixture -> replay -> contract-violation quarantine + raw topics -> bronze Parquet
+                      -> Quix windows -> metrics.windowed -> windows Parquet
+                      -> dbt silver/gold marts -> gold Apache Iceberg
+                      -> SLA measurement (latency / completeness / 0 violations)
 
 It uses ISOLATED per-run topics so repeated runs can't accumulate, and writes the lake outputs
-to fixed locations (cleared each run). Phase 4 extends this with the dbt silver/gold marts.
+to fixed locations (cleared each run).
 """
 
 from __future__ import annotations
@@ -119,5 +121,10 @@ def run_pipeline(
         gold_violations=sla.gold_violations,
         sla_passed=sla.passed,
     )
+    # Persist the run summary (incl. SLA) so the dashboard can display it.
+    result_path = Path(settings.runtime.lake_root) / "pipeline_result.json"
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(result.model_dump_json(indent=2))
+
     log.info("pipeline_complete", **result.model_dump())
     return result

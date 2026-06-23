@@ -130,5 +130,28 @@ services:
     profiles: ["pipeline"]
     restart: "no"
 
+  # ---------------------------------------------------------------------------
+  # Dashboard (profile: dashboard) — runs the offline pipeline to build the gold marts
+  # IN-CONTAINER (the Iceberg catalog stores absolute paths, so the warehouse must be built
+  # where it's read), then serves the Streamlit dashboard at http://localhost:8502.
+  # ---------------------------------------------------------------------------
+  ui:
+    image: tickstream:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    entrypoint: ["sh", "-c"]
+    command:
+      - "tickstream pipeline && streamlit run src/tickstream/ui/dashboard.py
+         --server.port=8502 --server.address=0.0.0.0 --server.headless=true"
+    ports:
+      - "8502:8502"
+    profiles: ["dashboard"]
+
 volumes:
   redpanda_data:

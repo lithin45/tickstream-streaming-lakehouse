@@ -43,3 +43,4 @@ dbt/.user.yml
 
 # Local Claude Code settings (personal, not shared)
 .claude/settings.local.json
+.claude/launch.json

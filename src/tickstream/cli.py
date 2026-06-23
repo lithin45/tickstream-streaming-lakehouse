@@ -7,8 +7,14 @@
     tickstream record           # capture a short LIVE stream to a JSONL fixture (uses socket)
     tickstream replay           # replay the committed fixture through Redpanda (offline)
     tickstream produce          # run the LIVE producer (WebSocket -> Redpanda, reconnecting)
+    tickstream process          # run the Quix Streams windowed processor
+    tickstream bronze           # drain raw topics into bronze Parquet
+    tickstream build-marts      # dbt silver/gold marts + Apache Iceberg gold
+    tickstream query            # DuckDB SQL over gold Iceberg + time-travel
+    tickstream contracts        # validate bronze against the data contract
+    tickstream pipeline         # full offline medallion: replay -> ... -> marts -> SLAs
 
-More commands (process / dashboard) are added in later phases.
+The Streamlit dashboard is launched separately via `make dashboard` (not a CLI command).
 """
 
 from __future__ import annotations

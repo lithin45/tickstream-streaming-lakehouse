@@ -9,7 +9,7 @@ URUN := $(UV) run --all-extras
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down ps logs console test test-unit demo demo-container \
-        record replay produce process bronze marts query contracts pipeline lint format format-check clean
+        record replay produce process bronze marts query contracts dashboard pipeline lint format format-check clean
 
 help: ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -68,6 +68,9 @@ query: install ## Example DuckDB SQL over gold Iceberg + an Iceberg time-travel 
 
 contracts: install ## Validate the landed bronze against the data contract (quarantine count).
 	$(URUN) tickstream contracts
+
+dashboard: up install ## Launch the Streamlit dashboard at http://localhost:8502 (run `make replay` first).
+	$(URUN) streamlit run src/tickstream/ui/dashboard.py --server.port 8502
 
 pipeline: replay ## Alias for `make replay` (full offline pipeline).
 

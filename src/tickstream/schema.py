@@ -62,8 +62,8 @@ class MarketEvent(BaseModel):
     def _basic_contract(self) -> MarketEvent:
         """Seed of the data contract: prices positive, sizes non-negative, bid<=ask.
 
-        Phase 5 enforces the full contract with Great Expectations and routes violations
-        to a quarantine topic; this catch is a cheap first line of defense at construction.
+        The Pandera contract (quality/contract.py) enforces the full contract and routes
+        violations to a quarantine topic; this catch is a cheap first line of defense.
         """
         if self.price is not None and self.price <= 0:
             raise ValueError(f"price must be > 0, got {self.price}")
