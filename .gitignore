@@ -28,6 +28,7 @@ warehouse/
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+dbt/.user.yml
 .dbt/
 
 # Great Expectations generated artifacts

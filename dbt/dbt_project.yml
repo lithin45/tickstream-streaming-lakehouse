@@ -1,0 +1,26 @@
+name: "tickstream"
+version: "1.0.0"
+config-version: 2
+profile: "tickstream"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+# No anonymous telemetry — keeps the build offline and avoids the generated .user.yml.
+flags:
+  send_anonymous_usage_stats: false
+
+# lake_root is overridden to an absolute path by the Python orchestrator; this default lets
+# `dbt build` work when run from the repo root.
+vars:
+  lake_root: "lake_data"
+
+models:
+  tickstream:
+    silver:
+      +materialized: view
+    gold:
+      +materialized: table

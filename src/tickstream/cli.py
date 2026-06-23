@@ -198,8 +198,38 @@ def pipeline(
     _require_broker(timeout)
     res = run_pipeline(settings, fixture=fixture, bounded_timeout=bounded_timeout)
     typer.echo(
-        f"replayed {res.replayed_events} events; "
-        f"bronze {res.bronze_rows} rows; windows {res.window_rows} rows"
+        f"replayed {res.replayed_events} events; bronze {res.bronze_rows} rows; "
+        f"windows {res.window_rows} rows; "
+        f"gold {res.gold_rows} rows ({res.gold_snapshots} snapshots)"
+    )
+
+
+@app.command("build-marts")
+def build_marts_cmd() -> None:
+    """Build dbt silver/gold marts and land gold in Apache Iceberg (reads bronze Parquet)."""
+    from tickstream.lake.marts import build_marts
+
+    res = build_marts(get_settings())
+    typer.echo(f"gold {res.gold_rows} rows; snapshots {res.snapshot_1m} -> {res.snapshot_5m}")
+
+
+@app.command()
+def query() -> None:
+    """Run example DuckDB SQL over the gold Iceberg table + an Iceberg time-travel query."""
+    from tickstream.query.duck import symbol_summary, time_travel
+
+    settings = get_settings()
+    typer.echo("=== per-symbol 1m summary (DuckDB SQL over gold Iceberg) ===")
+    for r in symbol_summary(settings):
+        typer.echo(
+            f"  {r['symbol']}: {r['windows']} windows, "
+            f"volume={r['total_volume']:.4f}, mean_spread={r['mean_spread']}"
+        )
+    tt = time_travel(settings)
+    typer.echo("=== Iceberg time-travel ===")
+    typer.echo(
+        f"  {len(tt['snapshots'])} snapshots; current={tt['current_rows']} rows, "
+        f"first snapshot={tt.get('first_snapshot_rows')} rows"
     )
 
 

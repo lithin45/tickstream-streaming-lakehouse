@@ -61,8 +61,10 @@ class RuntimeSettings(BaseSettings):
     source_config_path: Path = DEFAULT_SOURCE_CONFIG
     log_level: str = "INFO"
     log_json: bool = True
-    # Local lakehouse storage root (bronze/silver Parquet + Iceberg warehouse).
+    # Local lakehouse storage root (bronze/silver/windows Parquet).
     lake_root: Path = REPO_ROOT / "lake_data"
+    # Warehouse root (DuckDB file + Iceberg catalog/data for the gold layer).
+    warehouse_root: Path = REPO_ROOT / "warehouse"
 
 
 class ExchangeProfile(BaseModel):

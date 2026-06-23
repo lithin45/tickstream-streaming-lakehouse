@@ -9,7 +9,7 @@ URUN := $(UV) run --all-extras
 
 .DEFAULT_GOAL := help
 .PHONY: help install up down ps logs console test test-unit demo demo-container \
-        record replay produce process bronze pipeline lint format format-check clean
+        record replay produce process bronze marts query pipeline lint format format-check clean
 
 help: ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -59,6 +59,12 @@ process: up install ## Run the Quix Streams windowed processor (live; Ctrl-C to 
 
 bronze: up install ## Drain raw topics into bronze Parquet.
 	$(URUN) tickstream bronze
+
+marts: install ## Build dbt silver/gold marts + land gold in Apache Iceberg (reads bronze).
+	$(URUN) tickstream build-marts
+
+query: install ## Example DuckDB SQL over gold Iceberg + an Iceberg time-travel query.
+	$(URUN) tickstream query
 
 pipeline: replay ## Alias for `make replay` (full offline pipeline).
 

@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: silver_trades
+    description: "Typed, validity-filtered, trade_id-deduplicated trade events."
+    columns:
+      - name: trade_id
+        tests: [not_null]
+      - name: symbol
+        tests: [not_null]
+      - name: price
+        tests: [not_null]
+
+  - name: silver_ticker
+    description: "Typed ticker events with derived spread and mid (no crossed books)."
+    columns:
+      - name: symbol
+        tests: [not_null]
+      - name: spread
+        tests: [not_null]
+
+  - name: gold_window_metrics
+    description: "1m/5m tumbling-window microstructure marts per symbol (trades joined to ticker)."
+    columns:
+      - name: window_key
+        description: "Grain: symbol|window_size|window_start."
+        tests: [unique, not_null]
+      - name: symbol
+        tests: [not_null]
+      - name: window_start
+        tests: [not_null]
+      - name: window_size
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["1m", "5m"]

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from tickstream.config import Settings, Topics, get_settings
 from tickstream.lake.bronze import bronze_root, write_bronze
+from tickstream.lake.marts import build_marts
 from tickstream.lake.windows import land_windows, windows_root
 from tickstream.logging import get_logger
 from tickstream.processing.app import run_processor
@@ -31,6 +32,8 @@ class PipelineResult(BaseModel):
     replayed_events: int
     bronze_rows: int
     window_rows: int
+    gold_rows: int
+    gold_snapshots: int
 
 
 def _isolated(settings: Settings, uid: str) -> Settings:
@@ -80,8 +83,15 @@ def run_pipeline(
         if auto_state:
             shutil.rmtree(state_dir, ignore_errors=True)
 
+    # Build the silver/gold marts (dbt) and land gold in Iceberg, from the canonical lake dirs.
+    marts = build_marts(settings)
+
     result = PipelineResult(
-        replayed_events=summary.events, bronze_rows=bronze_rows, window_rows=window_rows
+        replayed_events=summary.events,
+        bronze_rows=bronze_rows,
+        window_rows=window_rows,
+        gold_rows=marts.gold_rows,
+        gold_snapshots=2 if marts.snapshot_5m and marts.snapshot_5m != marts.snapshot_1m else 1,
     )
     log.info("pipeline_complete", **result.model_dump())
     return result

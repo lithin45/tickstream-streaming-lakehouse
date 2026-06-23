@@ -22,22 +22,27 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY config ./config
-# Baked-in fixture makes `replay` self-contained and fully offline inside the image.
+COPY dbt ./dbt
+# Baked-in fixture makes `replay`/`pipeline` self-contained and fully offline inside the image.
 COPY fixtures ./fixtures
 
 # --frozen: install the locked versions without re-resolving. --no-dev: skip test/lint deps.
-# Default extras cover the producer/processor/lake layers; dashboard/quality add theirs later.
-ARG EXTRA_FLAGS="--extra processing --extra lake"
+# Extras cover producer/processor/lake/dbt so the full offline pipeline (incl. gold marts) runs.
+ARG EXTRA_FLAGS="--extra processing --extra lake --extra dbt"
 RUN uv sync --frozen --no-dev ${EXTRA_FLAGS}
 
 # Put the venv on PATH so the `tickstream` console script resolves.
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Non-root runtime user; give it a writable lakehouse dir for bronze/windows/state output.
+# Non-root runtime user; give it writable lakehouse/warehouse/dbt dirs for pipeline output.
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/lake_data \
-    && chown -R appuser:appuser /app/lake_data
+    && mkdir -p /app/lake_data /app/warehouse \
+    && chown -R appuser:appuser /app/lake_data /app/warehouse /app/dbt
 USER appuser
+
+# Pre-install the DuckDB iceberg extension into appuser's cache so `tickstream query` (and any
+# iceberg_scan) works fully offline — INSTALL at runtime is then a no-op instead of a network call.
+RUN python -c "import duckdb; duckdb.connect().execute('INSTALL iceberg')"
 
 # Default to the CLI; compose services override `command`.
 ENTRYPOINT ["tickstream"]

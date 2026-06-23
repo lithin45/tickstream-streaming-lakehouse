@@ -1,0 +1,11 @@
+tickstream:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Absolute path injected by the orchestrator; defaults to repo-relative for manual runs.
+      path: "{{ env_var('TICKSTREAM_DUCKDB', 'warehouse/tickstream.duckdb') }}"
+      threads: 1
+      # Bucket/aggregate in UTC so SQL windows match the event-time oracle exactly.
+      settings:
+        TimeZone: "UTC"
