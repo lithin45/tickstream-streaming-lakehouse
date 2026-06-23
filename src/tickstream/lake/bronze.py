@@ -55,7 +55,8 @@ def write_bronze(
     *,
     root: Path | str | None = None,
     group_id: str = "tickstream-bronze",
-    timeout: float = 15.0,
+    timeout: float = 30.0,
+    idle: float = 3.0,
     max_messages: int | None = None,
     clear: bool = True,
 ) -> int:
@@ -73,14 +74,18 @@ def write_bronze(
 
     rows: list[dict] = []
     deadline = time.monotonic() + timeout
+    idle_until = time.monotonic() + idle
     try:
         while time.monotonic() < deadline:
             if max_messages is not None and len(rows) >= max_messages:
                 break
             msg = consumer.poll(1.0)
             if msg is None or msg.error():
+                if time.monotonic() >= idle_until:
+                    break  # caught up: no new messages for `idle` seconds
                 continue
             rows.append(MarketEvent.from_json_bytes(msg.value()).model_dump())
+            idle_until = time.monotonic() + idle
     finally:
         consumer.close()
 

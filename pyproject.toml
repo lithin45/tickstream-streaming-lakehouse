@@ -34,8 +34,10 @@ lake = [
 dbt = [
     "dbt-duckdb>=1.8,<2.0",
 ]
+# Data contracts via Pandera (the spec's "or Pandera if simpler" option — cleaner row-level
+# quarantine splitting than Great Expectations 1.x).
 quality = [
-    "great-expectations>=1.0,<2.0",
+    "pandera>=0.20",
     "pandas>=2.2",
 ]
 ui = [

@@ -23,8 +23,10 @@ def isolated_settings(settings: Settings) -> Settings:
     return settings.model_copy(update={"topics": topics})
 
 
-def drain_topic(settings: Settings, topic: str, *, timeout: float = 15.0) -> list[dict]:
-    """Consume a topic from earliest until idle; return decoded JSON values."""
+def drain_topic(
+    settings: Settings, topic: str, *, timeout: float = 20.0, idle: float = 3.0
+) -> list[dict]:
+    """Consume a topic from earliest until idle (no new message for ``idle`` s); return values."""
     consumer = build_consumer(
         settings,
         group_id=f"read-{uuid.uuid4().hex[:8]}",
@@ -34,11 +36,15 @@ def drain_topic(settings: Settings, topic: str, *, timeout: float = 15.0) -> lis
     consumer.subscribe([topic])
     out: list[dict] = []
     deadline = time.monotonic() + timeout
+    idle_until = time.monotonic() + idle
     try:
         while time.monotonic() < deadline:
             msg = consumer.poll(1.0)
             if msg is None or msg.error():
+                if time.monotonic() >= idle_until:
+                    break
                 continue
+            idle_until = time.monotonic() + idle
             out.append(orjson.loads(msg.value()))
     finally:
         consumer.close()

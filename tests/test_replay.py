@@ -61,7 +61,7 @@ def test_replay_publishes_expected_count(broker: Settings, fixture_path: Path) -
     assert summary.events == exp_events
     assert summary.trades == exp_trades
     assert summary.tickers == exp_tickers
-    assert summary.skipped == 0  # the committed fixture is clean
+    assert summary.quarantined == 0  # the committed fixture is clean
 
     # Broker-side: exactly that many new messages actually landed across the raw topics.
     after = end_offset_total(broker, raw_topics)

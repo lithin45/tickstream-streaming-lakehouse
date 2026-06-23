@@ -24,6 +24,9 @@ from tickstream.lake.windows import land_windows, windows_root
 from tickstream.logging import get_logger
 from tickstream.processing.app import run_processor
 from tickstream.producer.replay import DEFAULT_FIXTURE, replay
+from tickstream.quality.quarantine import land_quarantine, quarantine_root
+from tickstream.quality.sla import measure_sla
+from tickstream.utils import utcnow
 
 log = get_logger("pipeline")
 
@@ -34,6 +37,11 @@ class PipelineResult(BaseModel):
     window_rows: int
     gold_rows: int
     gold_snapshots: int
+    quarantined: int
+    latency_p95_s: float
+    completeness_pct: float
+    gold_violations: int
+    sla_passed: bool
 
 
 def _isolated(settings: Settings, uid: str) -> Settings:
@@ -64,6 +72,15 @@ def run_pipeline(
 
     log.info("pipeline_start", run=uid, fixture=str(fixture))
     summary = replay(run, fixture=fixture)
+    # Land any contract-violating records the replay routed to the quarantine topic, and
+    # reconcile the landed count against what replay produced (catches a truncated drain).
+    landed_q = land_quarantine(
+        run, root=quarantine_root(settings), group_id=f"quar-{uid}", clear=True
+    )
+    if landed_q != summary.quarantined:
+        raise RuntimeError(
+            f"quarantine landing incomplete: landed {landed_q} != produced {summary.quarantined}"
+        )
     bronze_rows = write_bronze(
         run, root=bronze_root(settings), group_id=f"bronze-{uid}", clear=True
     )
@@ -85,6 +102,10 @@ def run_pipeline(
 
     # Build the silver/gold marts (dbt) and land gold in Iceberg, from the canonical lake dirs.
     marts = build_marts(settings)
+    gold_built_at = utcnow()
+
+    # Measure the SLAs (latency p95, % windows produced, 0 violations to gold) against this run.
+    sla = measure_sla(settings, gold_built_at=gold_built_at)
 
     result = PipelineResult(
         replayed_events=summary.events,
@@ -92,6 +113,11 @@ def run_pipeline(
         window_rows=window_rows,
         gold_rows=marts.gold_rows,
         gold_snapshots=2 if marts.snapshot_5m and marts.snapshot_5m != marts.snapshot_1m else 1,
+        quarantined=summary.quarantined,
+        latency_p95_s=sla.latency_p95_s,
+        completeness_pct=sla.completeness_pct,
+        gold_violations=sla.gold_violations,
+        sla_passed=sla.passed,
     )
     log.info("pipeline_complete", **result.model_dump())
     return result

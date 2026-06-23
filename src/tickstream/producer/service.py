@@ -28,8 +28,9 @@ from tickstream.kafka_utils import build_producer, delivery_report, ensure_topic
 from tickstream.logging import get_logger
 from tickstream.producer.backoff import backoff_delays
 from tickstream.producer.exchanges import build_client
-from tickstream.producer.normalize import NORMALIZE_ERRORS, build_symbol_map, normalize
+from tickstream.producer.normalize import build_symbol_map, normalize_safe
 from tickstream.producer.publisher import topic_for_event
+from tickstream.quality.quarantine import quarantine_message
 from tickstream.utils import utcnow
 
 log = get_logger("producer.service")
@@ -50,12 +51,15 @@ async def run_producer(
     exchange = exchange or settings.source.exchange
     symbol_map = build_symbol_map(settings, exchange)
 
-    ensure_topics(settings, [settings.topics.trades_raw, settings.topics.ticker_raw])
+    ensure_topics(
+        settings,
+        [settings.topics.trades_raw, settings.topics.ticker_raw, settings.topics.quarantine],
+    )
     producer = build_producer(settings)
 
     delays = backoff_delays(base=_BACKOFF_BASE, cap=_BACKOFF_CAP)
     published = 0
-    dropped = 0
+    quarantined = 0
     reconnects = 0
 
     try:
@@ -65,14 +69,19 @@ async def run_producer(
             produced_this_conn = 0
             try:
                 async for _channel, payload in client.stream():
-                    try:
-                        events = normalize(
-                            exchange, payload, ts_ingest=utcnow(), symbol_map=symbol_map
+                    events, rejects = normalize_safe(
+                        exchange, payload, ts_ingest=utcnow(), symbol_map=symbol_map
+                    )
+                    for reason, sub in rejects:
+                        quarantined += 1
+                        producer.produce(
+                            topic=settings.topics.quarantine,
+                            value=quarantine_message(
+                                exchange=exchange, seq=0, reason=reason, payload=sub
+                            ),
+                            on_delivery=delivery_report,
                         )
-                    except NORMALIZE_ERRORS as exc:
-                        dropped += 1
-                        log.warning("normalize_failed", error=str(exc), dropped=dropped)
-                        continue
+                        producer.poll(0)
                     for event in events:
                         producer.produce(
                             topic=topic_for_event(settings, event),
@@ -85,7 +94,9 @@ async def run_producer(
                         produced_this_conn += 1
                     if max_messages and published >= max_messages:
                         producer.flush(timeout=10.0)
-                        log.info("max_messages_reached", published=published, dropped=dropped)
+                        log.info(
+                            "max_messages_reached", published=published, quarantined=quarantined
+                        )
                         return published
             except (websockets.WebSocketException, OSError) as exc:
                 producer.flush(timeout=5.0)

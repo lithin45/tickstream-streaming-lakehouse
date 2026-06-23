@@ -41,7 +41,7 @@ class FakeProducer:
         self.produced = []
         self.flushes = 0
 
-    def produce(self, *, topic, key, value, on_delivery=None):
+    def produce(self, *, topic, value, key=None, on_delivery=None):
         self.produced.append((topic, key, value))
 
     def poll(self, _timeout):
@@ -106,14 +106,17 @@ def test_max_messages_stops_and_flushes(patched) -> None:
     assert producer.flushes >= 1
 
 
-def test_malformed_message_is_skipped_not_fatal(patched) -> None:
+def test_malformed_message_is_quarantined_not_fatal(patched) -> None:
     producer, _sleeps, set_clients = patched
-    # First message is missing product_id (normalize raises) -> must be dropped, not crash.
+    # First message is missing product_id -> quarantined per-record (not published, not fatal).
     set_clients([FakeClient([_trade_payload("bad", product_id=None), _trade_payload("ok")])])
 
     published = asyncio.run(run_producer(max_messages=1))
     assert published == 1
-    assert len(producer.produced) == 1
+    raw = [p for p in producer.produced if "raw" in p[0]]
+    quarantine = [p for p in producer.produced if "quarantine" in p[0]]
+    assert len(raw) == 1  # only the valid trade reached a raw topic
+    assert len(quarantine) == 1  # the malformed one was quarantined
 
 
 def test_clean_end_applies_backoff_and_respects_max_reconnects(patched) -> None:

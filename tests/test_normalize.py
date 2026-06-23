@@ -63,7 +63,7 @@ def test_normalize_coinbase_market_trades() -> None:
             }
         ],
     }
-    events = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
+    events, _ = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
     assert len(events) == 2
     btc, eth = events
     assert (btc.symbol, btc.event_type, btc.side) == ("BTC-USD", EventType.TRADE, Side.BUY)
@@ -95,7 +95,7 @@ def test_normalize_coinbase_ticker_has_book_and_spread() -> None:
             }
         ],
     }
-    (event,) = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
+    (event,), _ = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
     assert event.event_type == EventType.TICKER
     assert event.best_bid == 42000.5 and event.best_ask == 42000.6
     assert event.best_bid_size == 0.5 and event.best_ask_size == 0.7
@@ -138,8 +138,41 @@ def test_coinbase_market_trades_snapshot_is_skipped() -> None:
             },
         ],
     }
-    events = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
+    events, _ = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
     assert [e.trade_id for e in events] == ["new"]
+
+
+def _ct(product_id: str, trade_id: str, price: str) -> dict:
+    return {
+        "product_id": product_id,
+        "trade_id": trade_id,
+        "price": price,
+        "size": "1.0",
+        "time": "2026-01-01T00:00:00.000000Z",
+        "side": "BUY",
+    }
+
+
+def test_coinbase_multitrade_quarantines_only_the_bad_trade() -> None:
+    # One bad trade (price <= 0) bundled with two valid siblings must NOT drop the siblings.
+    payload = {
+        "channel": "market_trades",
+        "timestamp": "2026-01-01T00:00:00.000000Z",
+        "events": [
+            {
+                "type": "update",
+                "trades": [
+                    _ct("BTC-USD", "ok1", "100.0"),
+                    _ct("BTC-USD", "bad", "-5.0"),
+                    _ct("BTC-USD", "ok2", "200.0"),
+                ],
+            }
+        ],
+    }
+    events, rejects = normalize_coinbase(payload, ts_ingest=_TS_INGEST)
+    assert [e.trade_id for e in events] == ["ok1", "ok2"]
+    assert len(rejects) == 1
+    assert rejects[0][1]["trade_id"] == "bad"
 
 
 # --- Binance.US ---
@@ -161,7 +194,7 @@ def test_normalize_binance_trade_side_from_maker_flag(maker: bool, expected_side
             "m": maker,
         },
     }
-    (event,) = normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP)
+    (event,), _ = normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP)
     assert event.symbol == "BTC-USD"
     assert event.side == expected_side
     assert event.price == 42000.5 and event.size == 0.02 and event.trade_id == "555"
@@ -174,7 +207,7 @@ def test_normalize_binance_unmapped_symbol_is_dropped() -> None:
         "data": {"e": "trade", "s": "DOGEUSD", "t": 1, "p": "0.1", "q": "1", "T": 1735689600000},
     }
     # DOGEUSD is not in the configured symbol map -> dropped (no raw, non-canonical symbol).
-    assert normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP) == []
+    assert normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP) == ([], [])
 
 
 def test_build_symbol_map_direction() -> None:
@@ -198,7 +231,7 @@ def test_normalize_binance_book_ticker() -> None:
         "stream": "ethusd@bookTicker",
         "data": {"u": 400, "s": "ETHUSD", "b": "2200.00", "B": "1.2", "a": "2200.50", "A": "0.8"},
     }
-    (event,) = normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP)
+    (event,), _ = normalize_binance_us(payload, ts_ingest=_TS_INGEST, symbol_map=_BINANCE_MAP)
     assert event.event_type == EventType.TICKER
     assert event.symbol == "ETH-USD"
     assert event.best_bid == 2200.0 and event.best_ask == 2200.5

@@ -200,7 +200,12 @@ def pipeline(
     typer.echo(
         f"replayed {res.replayed_events} events; bronze {res.bronze_rows} rows; "
         f"windows {res.window_rows} rows; "
-        f"gold {res.gold_rows} rows ({res.gold_snapshots} snapshots)"
+        f"gold {res.gold_rows} rows ({res.gold_snapshots} snapshots); "
+        f"quarantined {res.quarantined}"
+    )
+    typer.echo(
+        f"SLA: latency p95 {res.latency_p95_s}s (<60), windows {res.completeness_pct}% (>=99), "
+        f"gold violations {res.gold_violations} (==0) -> {'PASS' if res.sla_passed else 'FAIL'}"
     )
 
 
@@ -211,6 +216,21 @@ def build_marts_cmd() -> None:
 
     res = build_marts(get_settings())
     typer.echo(f"gold {res.gold_rows} rows; snapshots {res.snapshot_1m} -> {res.snapshot_5m}")
+
+
+@app.command()
+def contracts() -> None:
+    """Validate the landed bronze against the data contract and report the quarantine count."""
+    from tickstream.lake.bronze import read_bronze
+    from tickstream.quality.contract import apply_contract, count_out_of_order
+
+    settings = get_settings()
+    df = read_bronze(settings).to_pandas()
+    result = apply_contract(df, settings)
+    typer.echo(
+        f"contract: {result.n_valid} valid, {result.n_quarantined} violations; "
+        f"out-of-order (flagged) {count_out_of_order(df)}"
+    )
 
 
 @app.command()

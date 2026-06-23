@@ -18,9 +18,10 @@ from pydantic import BaseModel
 from tickstream.config import REPO_ROOT, Settings, get_settings
 from tickstream.kafka_utils import DeliveryCounter, build_producer, ensure_topics
 from tickstream.logging import get_logger
-from tickstream.producer.normalize import NORMALIZE_ERRORS, build_symbol_map, normalize
+from tickstream.producer.normalize import build_symbol_map, normalize_safe
 from tickstream.producer.publisher import topic_for_event
 from tickstream.producer.recording import read_fixture
+from tickstream.quality.quarantine import quarantine_message
 from tickstream.schema import EventType
 from tickstream.utils import utcnow
 
@@ -36,7 +37,7 @@ class ReplaySummary(BaseModel):
     events: int
     trades: int
     tickers: int
-    skipped: int
+    quarantined: int
     by_symbol: dict[str, int]
 
 
@@ -58,12 +59,15 @@ def replay(
     if not fixture.exists():
         raise FileNotFoundError(f"fixture not found: {fixture} (run `make record` first)")
 
-    ensure_topics(settings, [settings.topics.trades_raw, settings.topics.ticker_raw])
+    ensure_topics(
+        settings,
+        [settings.topics.trades_raw, settings.topics.ticker_raw, settings.topics.quarantine],
+    )
     producer = build_producer(settings)
     counter = DeliveryCounter()
     symbol_maps: dict[str, dict[str, str]] = {}
 
-    messages = trades = tickers = skipped = 0
+    messages = trades = tickers = quarantined = 0
     by_symbol: dict[str, int] = {}
     prev_recorded: float | None = None
 
@@ -84,17 +88,25 @@ def replay(
         if rec.exchange not in symbol_maps:
             symbol_maps[rec.exchange] = build_symbol_map(settings, rec.exchange)
 
-        try:
-            events = normalize(
-                rec.exchange,
-                rec.payload,
-                ts_ingest=utcnow(),
-                symbol_map=symbol_maps[rec.exchange],
+        events, rejects = normalize_safe(
+            rec.exchange,
+            rec.payload,
+            ts_ingest=utcnow(),
+            symbol_map=symbol_maps[rec.exchange],
+        )
+        # Each contract-violating sub-record is quarantined individually (never published to
+        # raw), so a single bad trade does not drop its valid siblings in the same message.
+        for reason, sub in rejects:
+            quarantined += 1
+            producer.produce(
+                topic=settings.topics.quarantine,
+                value=quarantine_message(
+                    exchange=rec.exchange, seq=rec.seq, reason=reason, payload=sub
+                ),
+                on_delivery=counter,
             )
-        except NORMALIZE_ERRORS as exc:
-            skipped += 1
-            log.warning("normalize_failed", seq=rec.seq, error=str(exc), skipped=skipped)
-            continue
+            producer.poll(0)
+            log.warning("quarantined", seq=rec.seq, reason=reason, quarantined=quarantined)
 
         for event in events:
             producer.produce(
@@ -123,7 +135,7 @@ def replay(
         events=produced,
         trades=trades,
         tickers=tickers,
-        skipped=skipped,
+        quarantined=quarantined,
         by_symbol=by_symbol,
     )
     log.info("replay_complete", **summary.model_dump())

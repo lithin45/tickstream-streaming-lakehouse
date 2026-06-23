@@ -22,6 +22,31 @@ def settings() -> Settings:
     return get_settings()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_ephemeral_topics():
+    """Best-effort: delete the per-run isolated test topics at session end, so a long-lived
+    local broker doesn't accumulate thousands of them and hit its partition/memory limit.
+    (CI starts a fresh broker each run, so this is purely a local-dev convenience.)"""
+    yield
+    try:
+        from tickstream.kafka_utils import admin_client
+
+        admin = admin_client(get_settings().kafka)
+        prefixes = (
+            "trades.raw.",
+            "ticker.raw.",
+            "metrics.windowed.",
+            "contracts.quarantine.",
+            "test.roundtrip.",
+            "demo.roundtrip.",
+        )
+        doomed = [t for t in admin.list_topics(timeout=5).topics if t.startswith(prefixes)]
+        if doomed:
+            admin.delete_topics(doomed)
+    except Exception:
+        pass
+
+
 @pytest.fixture(scope="session")
 def broker(settings: Settings) -> Settings:
     """Provide a reachable broker, else skip — but *fail* if TICKSTREAM_REQUIRE_BROKER is set.

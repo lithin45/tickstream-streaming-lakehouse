@@ -31,9 +31,6 @@ dbt/logs/
 dbt/.user.yml
 .dbt/
 
-# Great Expectations generated artifacts
-gx/uncommitted/
-
 # OS / editor
 .DS_Store
 .idea/

@@ -7,12 +7,16 @@ analytics with windowed stream processing, enforces data contracts (quarantining
 records), and lands query-ready lakehouse tables — Redpanda → Quix Streams → bronze/silver
 Parquet → gold Apache Iceberg → DuckDB / Streamlit.
 
-> **Status:** under active construction. **Phases 1–4 are complete** — see
+> **Status:** under active construction. **Phases 1–5 are complete** — see
 > [Build phases](#build-phases). A recorded-fixture **replay harness** makes the whole
 > pipeline reproducible offline with no network: `make replay` feeds a committed sample of
 > real Coinbase market data through Redpanda → bronze Parquet **and** **Quix Streams
 > tumbling-window analytics** → **dbt-built silver/gold marts** → **Apache Iceberg** gold tables
-> queried with **DuckDB SQL** (incl. time travel), deterministically.
+> queried with **DuckDB SQL** (incl. time travel), with **data contracts + a quarantine path**
+> and **SLAs asserted against the replay** — deterministically.
+
+**SLA result (latest `make replay`):** end-to-end ingest→gold latency **p95 30.8 s** (< 60 s) ·
+**100%** of expected windows produced (≥ 99%) · **0** contract violations reached gold → **PASS**.
 
 ---
 
@@ -38,7 +42,7 @@ flowchart LR
 
     subgraph SP["Stream processing (Quix Streams)"]
         WIN["tumbling windows 1m/5m<br/>VWAP · spread · volume · count<br/>watermarks + late data"]
-        DQ["data contracts<br/>(Great Expectations)"]
+        DQ["data contracts<br/>(Pandera)"]
     end
 
     subgraph LAKE["Lakehouse (medallion)"]
@@ -169,6 +173,32 @@ FROM gold
 WHERE window_size = '1m' ORDER BY symbol, window_start;
 ```
 
+### Data contracts & SLAs
+
+A formal, executable **data contract** ([quality/contract.py](src/tickstream/quality/contract.py),
+[Pandera](https://pandera.readthedocs.io/)) defines what a valid normalized record is — schema +
+types, `price > 0`, `size >= 0`, spread ≥ 0, non-null `symbol`/`ts_event`, known symbols. Records
+that fail it are split off to a **quarantine path**:
+
+- **Streaming guard:** a record that can't be normalized (a contract violation at the ingest
+  boundary) is routed to the `contracts.quarantine` topic with its reason — **never** to the raw
+  topics, so it cannot flow into bronze → silver → gold. `make replay` lands quarantined records to
+  a Parquet table. (`make contracts` validates the landed bronze and reports the count.)
+- Ordering (monotonic `ts_event` per symbol) is **flagged and counted**, not dropped.
+
+Three **SLAs are measured and asserted against the replay** ([quality/sla.py](src/tickstream/quality/sla.py),
+[tests/test_quality.py](tests/test_quality.py)):
+
+| SLA | Target | Latest replay |
+| --- | --- | --- |
+| end-to-end latency (ingest → gold), p95 | < 60 s | **30.8 s** ✅ |
+| expected windows produced per symbol | ≥ 99% | **100%** ✅ |
+| contract violations reaching gold | 0 | **0** ✅ |
+
+> **Library note:** the spec offered "Great Expectations **or Pandera if simpler**" — I chose
+> **Pandera** for its clean row-level quarantine split (failing rows by index), which makes the
+> "valid vs quarantined" boundary explicit and easy to test.
+
 Requirements: Docker + `docker compose`, and [`uv`](https://github.com/astral-sh/uv).
 The project pins **Python 3.11** (managed by uv). Ports used: Redpanda `19092`,
 Console `8080`, dashboard `8502` (later). No ports clash with common local services.
@@ -180,8 +210,8 @@ make install      # uv sync (core + dev deps)
 make test-unit    # unit tests only — no broker required
 make lint         # ruff check
 make format       # ruff format
-tickstream --help # CLI: health · topics-create · demo · record · replay · produce ·
-                  #      process · bronze · build-marts · query · pipeline
+tickstream --help # CLI: health · topics-create · demo · record · replay · produce · process ·
+                  #      bronze · build-marts · query · contracts · pipeline
 ```
 
 ---
@@ -203,7 +233,7 @@ sample fixtures are committed, for offline tests and replay.
 | 2 | Real WebSocket producer (Coinbase + Binance.US fallback, reconnect/backoff) + `make record` / `make replay` harness | ✅ done |
 | 3 | Quix Streams tumbling-window microstructure metrics (VWAP/spread/volume/count) on event time, with watermarks + late-data handling; bronze Parquet | ✅ done |
 | 4 | dbt-duckdb silver/gold marts (SQL windowing) + Apache Iceberg gold tables + DuckDB SQL + time-travel | ✅ done |
-| 5 | Data contracts (Great Expectations) + quarantine + SLA assertions | ⬜ |
+| 5 | Data contracts (Pandera) + quarantine path + SLA assertions (p95 latency, % windows, 0 violations to gold) | ✅ done |
 | 6 | Streamlit dashboard + polished README/diagram | ⬜ |
 
 ---
@@ -226,7 +256,8 @@ src/tickstream/
   processing/      # Quix Streams windowing (app.py) + pure metrics oracle (metrics.py)
   lake/            # bronze.py / windows.py Parquet sinks; marts.py (dbt) + iceberg.py (gold)
   query/           # duck.py — DuckDB SQL over gold Iceberg + time travel
-  pipeline.py      # `tickstream pipeline` — full offline replay -> bronze -> windows -> marts
+  quality/         # contract.py (Pandera) + quarantine.py + sla.py
+  pipeline.py      # `tickstream pipeline` — replay -> bronze -> windows -> marts -> contracts/SLA
 dbt/               # dbt-duckdb project: silver views + gold_window_metrics (SQL) + tests
   quality/         # (Phase 5) contracts + quarantine + SLAs
   query/ ui/       # (Phase 4/6) DuckDB queries + Streamlit dashboard

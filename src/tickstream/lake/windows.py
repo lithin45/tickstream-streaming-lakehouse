@@ -54,7 +54,8 @@ def land_windows(
     *,
     root: Path | str | None = None,
     group_id: str = "tickstream-windows-sink",
-    timeout: float = 15.0,
+    timeout: float = 30.0,
+    idle: float = 3.0,
     clear: bool = True,
 ) -> int:
     """Drain ``metrics.windowed`` into Parquet. Returns the number of window rows written."""
@@ -70,11 +71,15 @@ def land_windows(
 
     rows: list[dict] = []
     deadline = time.monotonic() + timeout
+    idle_until = time.monotonic() + idle
     try:
         while time.monotonic() < deadline:
             msg = consumer.poll(1.0)
             if msg is None or msg.error():
+                if time.monotonic() >= idle_until:
+                    break
                 continue
+            idle_until = time.monotonic() + idle
             rec = orjson.loads(msg.value())
             # Store window bounds as real timestamps for DuckDB/dbt.
             rec["window_start"] = parse_ts(rec["window_start"])
