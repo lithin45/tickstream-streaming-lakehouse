@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         # --locked fails the build if uv.lock has drifted from pyproject.toml.
-        run: uv sync --locked
+        run: uv sync --locked --all-extras
 
       - name: Ruff lint
         run: uv run ruff check .
@@ -51,9 +51,10 @@ jobs:
         # round-trip in-container; exits non-zero on any mismatch.
         run: docker compose --profile demo run --rm --build demo
 
-      - name: Replay fixture in-container (offline reproducibility)
-        # Proves a reviewer with no network can reproduce the pipeline from the baked-in fixture.
-        run: docker compose --profile replay run --rm replay
+      - name: Run offline pipeline in-container (reproducibility)
+        # Proves a reviewer with no network can reproduce the whole medallion (replay ->
+        # bronze -> windows) from the baked-in fixture.
+        run: docker compose --profile pipeline run --rm --build pipeline
 
       - name: Tear down
         if: always()

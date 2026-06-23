@@ -7,10 +7,11 @@ analytics with windowed stream processing, enforces data contracts (quarantining
 records), and lands query-ready lakehouse tables — Redpanda → Quix Streams → bronze/silver
 Parquet → gold Apache Iceberg → DuckDB / Streamlit.
 
-> **Status:** under active construction. **Phases 1–2 are complete** — see
+> **Status:** under active construction. **Phases 1–3 are complete** — see
 > [Build phases](#build-phases). A recorded-fixture **replay harness** makes the whole
 > pipeline reproducible offline with no network: `make replay` feeds a committed sample of
-> real Coinbase market data through Redpanda deterministically.
+> real Coinbase market data through Redpanda → bronze Parquet (raw tee) **and** **Quix Streams
+> tumbling-window analytics** → a windows Parquet dataset, deterministically.
 
 ---
 
@@ -41,6 +42,7 @@ flowchart LR
 
     subgraph LAKE["Lakehouse (medallion)"]
         BRONZE[("bronze · Parquet<br/>raw normalized")]
+        WINDOWS[("windows · Parquet<br/>tumbling metrics")]
         SILVER[("silver · Parquet<br/>clean / dedup — dbt")]
         GOLD[("gold · Apache Iceberg<br/>windowed marts — dbt")]
     end
@@ -56,11 +58,12 @@ flowchart LR
     PROD --> T1 & T2
     T1 --> WIN
     T2 --> WIN
+    T1 --> BRONZE
+    T2 --> BRONZE
     WIN --> T3
-    WIN --> BRONZE
     DQ -->|violations| QT
     BRONZE --> SILVER --> GOLD
-    T3 --> GOLD
+    T3 --> WINDOWS --> GOLD
     GOLD --> DUCK --> DASH
 ```
 
@@ -88,9 +91,9 @@ _(Expanded in the Phase 6 README.)_
 ```bash
 make up             # start Redpanda (+ Console at http://localhost:8080), wait until healthy
 make test           # run the full test suite against the live broker
-make replay         # feed the committed fixture through Redpanda — offline, deterministic
+make replay         # OFFLINE: replay fixture -> Quix windows -> bronze + windows Parquet
+make process        # run the live Quix Streams windowed processor
 make demo           # host round-trip: publish hand-crafted events and read them back (exact)
-make demo-container # same round-trip, built + run inside Docker (proves the image)
 make down           # stop the stack
 ```
 
@@ -110,6 +113,27 @@ runs off the fixture. Normalization (raw exchange JSON → the `MarketEvent` con
 unit-tested function shared by the live producer and the replayer, so replay exercises the exact
 same code path as production. Switch exchanges (Coinbase ↔ Binance.US) in
 [`config/source.yaml`](config/source.yaml).
+
+### Stream processing (windowing)
+
+The processor ([`processing/app.py`](src/tickstream/processing/app.py)) is a **Quix Streams**
+`StreamingDataFrame` pipeline that consumes `trades.raw` / `ticker.raw` and computes **tumbling
+windows** per symbol, emitting closed windows to `metrics.windowed`:
+
+- **1-minute and 5-minute** windows, **keyed by symbol** (windowing is per message key).
+- **Event-time** based: a `timestamp_extractor` reads each record's `ts_event`, so a trade is
+  bucketed by *when it happened*, not when it was consumed — out-of-order data lands in the
+  correct window.
+- **Watermarks + late data:** a `grace_ms` period tolerates out-of-order arrivals; records later
+  than the grace are routed to an `on_late` hook (logged + dropped, not silently merged).
+- **Metrics:** VWAP = Σ(price·size)/Σ(size), trade volume, trade count (from trades); average
+  bid/ask spread and mid (from ticker).
+
+The windowing math has a pure, socket-free twin in
+[`processing/metrics.py`](src/tickstream/processing/metrics.py) that serves as its **exact test
+oracle**: the integration test replays the fixture, runs the real Quix processor, and asserts the
+streamed closed windows match the reference **field-for-field**. `make replay` then lands the raw
+events to **bronze Parquet** and the windows to a Parquet dataset for the lakehouse.
 
 Requirements: Docker + `docker compose`, and [`uv`](https://github.com/astral-sh/uv).
 The project pins **Python 3.11** (managed by uv). Ports used: Redpanda `19092`,
@@ -142,7 +166,7 @@ sample fixtures are committed, for offline tests and replay.
 | --- | --- | --- |
 | 1 | Scaffold + broker: uv project, src layout, Redpanda compose (healthy), Makefile, CI, broker round-trip test | ✅ done |
 | 2 | Real WebSocket producer (Coinbase + Binance.US fallback, reconnect/backoff) + `make record` / `make replay` harness | ✅ done |
-| 3 | Quix Streams tumbling-window microstructure metrics (VWAP/spread/volume/count) | ⬜ |
+| 3 | Quix Streams tumbling-window microstructure metrics (VWAP/spread/volume/count) on event time, with watermarks + late-data handling; bronze Parquet | ✅ done |
 | 4 | dbt-duckdb silver/gold marts + Iceberg time-travel | ⬜ |
 | 5 | Data contracts (Great Expectations) + quarantine + SLA assertions | ⬜ |
 | 6 | Streamlit dashboard + polished README/diagram | ⬜ |
@@ -164,8 +188,9 @@ src/tickstream/
     normalize.py   #   pure raw->MarketEvent normalization (unit-tested)
     record.py      #   capture live -> fixture   replay.py # fixture -> Redpanda
     service.py     #   live producer w/ reconnect+backoff
-  processing/      # (Phase 3) Quix Streams windowing
-  lake/            # (Phase 4) bronze/silver/gold + Iceberg
+  processing/      # Quix Streams windowing (app.py) + pure metrics oracle (metrics.py)
+  lake/            # bronze.py / windows.py Parquet sinks; (Phase 4) silver/gold + Iceberg
+  pipeline.py      # `tickstream pipeline` — full offline replay -> bronze -> windows
   quality/         # (Phase 5) contracts + quarantine + SLAs
   query/ ui/       # (Phase 4/6) DuckDB queries + Streamlit dashboard
 config/source.yaml # exchange / symbols / channels

@@ -26,14 +26,17 @@ COPY config ./config
 COPY fixtures ./fixtures
 
 # --frozen: install the locked versions without re-resolving. --no-dev: skip test/lint deps.
-ARG EXTRA_FLAGS=""
+# Default extras cover the producer/processor/lake layers; dashboard/quality add theirs later.
+ARG EXTRA_FLAGS="--extra processing --extra lake"
 RUN uv sync --frozen --no-dev ${EXTRA_FLAGS}
 
 # Put the venv on PATH so the `tickstream` console script resolves.
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Non-root runtime user.
-RUN useradd --create-home --uid 10001 appuser
+# Non-root runtime user; give it a writable lakehouse dir for bronze/windows/state output.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/lake_data \
+    && chown -R appuser:appuser /app/lake_data
 USER appuser
 
 # Default to the CLI; compose services override `command`.

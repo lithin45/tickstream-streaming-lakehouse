@@ -51,3 +51,24 @@ def unique_topic() -> str:
 def fixture_path() -> Path:
     """Path to the committed recorded-stream fixture used by replay/normalization tests."""
     return REPO_ROOT / "fixtures" / "recorded_stream.jsonl"
+
+
+@pytest.fixture(scope="session")
+def fixture_events(fixture_path: Path):
+    """The committed fixture normalized to MarketEvents (deterministic, fixed ts_ingest)."""
+    from datetime import UTC, datetime
+
+    from tickstream.producer.normalize import build_symbol_map, normalize
+    from tickstream.producer.recording import read_fixture
+
+    settings = get_settings()
+    ts = datetime(2026, 1, 1, tzinfo=UTC)
+    maps: dict[str, dict[str, str]] = {}
+    events = []
+    for rec in read_fixture(fixture_path):
+        if rec.exchange not in maps:
+            maps[rec.exchange] = build_symbol_map(settings, rec.exchange)
+        events.extend(
+            normalize(rec.exchange, rec.payload, ts_ingest=ts, symbol_map=maps[rec.exchange])
+        )
+    return events

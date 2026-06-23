@@ -95,10 +95,9 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Offline replay (profile: replay) — feed the baked-in fixture through Redpanda.
-  # No network; reproduces the pipeline deterministically inside the image.
+  # Stream processor (profile: live) — Quix Streams windowed metrics -> metrics.windowed.
   # ---------------------------------------------------------------------------
-  replay:
+  processor:
     image: tickstream:latest
     build:
       context: .
@@ -108,8 +107,27 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-    command: ["replay"]
-    profiles: ["replay"]
+    command: ["process"]
+    profiles: ["live"]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Offline pipeline (profile: pipeline) — feed the baked-in fixture through the whole
+  # medallion (replay -> bronze -> windows). No network; deterministic; reproduces the
+  # pipeline inside the image.
+  # ---------------------------------------------------------------------------
+  pipeline:
+    image: tickstream:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    command: ["pipeline"]
+    profiles: ["pipeline"]
     restart: "no"
 
 volumes:

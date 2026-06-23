@@ -166,5 +166,42 @@ def produce(
     typer.echo(f"published {published} events")
 
 
+@app.command()
+def process(once: bool = False, bounded_timeout: float = 15.0, timeout: float = 30.0) -> None:
+    """Run the Quix Streams windowed processor (live; --once drains the topics then stops)."""
+    from tickstream.processing.app import run_processor
+
+    settings = get_settings()
+    _require_broker(timeout)
+    run_processor(settings, bounded_timeout=bounded_timeout if once else None)
+
+
+@app.command()
+def bronze(drain: float = 15.0, timeout: float = 30.0) -> None:
+    """Drain the raw topics into bronze Parquet (lake_data/bronze)."""
+    from tickstream.lake.bronze import write_bronze
+
+    settings = get_settings()
+    _require_broker(timeout)
+    n = write_bronze(settings, timeout=drain)
+    typer.echo(f"bronze rows written: {n}")
+
+
+@app.command()
+def pipeline(
+    fixture: str = REPLAY_FIXTURE, bounded_timeout: float = 15.0, timeout: float = 30.0
+) -> None:
+    """Run the full offline pipeline: replay -> bronze -> windows (deterministic, no network)."""
+    from tickstream.pipeline import run_pipeline
+
+    settings = get_settings()
+    _require_broker(timeout)
+    res = run_pipeline(settings, fixture=fixture, bounded_timeout=bounded_timeout)
+    typer.echo(
+        f"replayed {res.replayed_events} events; "
+        f"bronze {res.bronze_rows} rows; windows {res.window_rows} rows"
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()
