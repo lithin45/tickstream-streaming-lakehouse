@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TickStream</title>
+<style>
+  @page { size: A4; margin: 15mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1f2733; line-height: 1.55; font-size: 11pt; margin: 0;
+  }
+  h1, h2, h3 { color: #0f1b2d; line-height: 1.2; }
+  h2 {
+    font-size: 16pt; margin: 26px 0 10px; padding-bottom: 6px;
+    border-bottom: 2px solid #e6eaf0;
+  }
+  h3 { font-size: 12.5pt; margin: 16px 0 4px; }
+  p { margin: 8px 0; }
+  a { color: #2563aa; text-decoration: none; }
+  .muted { color: #5b6675; }
+  section { break-inside: avoid; }
+
+  /* Header band */
+  .hero {
+    background: linear-gradient(120deg, #0f2747 0%, #14507a 60%, #1c7d8c 100%);
+    color: #fff; padding: 30px 30px 26px; border-radius: 12px;
+  }
+  .hero h1 { color: #fff; font-size: 30pt; margin: 0 0 4px; letter-spacing: .3px; }
+  .hero .tag { font-size: 12.5pt; color: #dceaf5; margin: 0 0 14px; max-width: 92%; }
+  .hero .by { font-size: 11pt; color: #bcd6ea; }
+  .hero .by b { color: #fff; }
+  .links { margin-top: 12px; font-size: 10pt; }
+  .links span { display: inline-block; margin-right: 18px; color: #cfe3f2; }
+  .links b { color: #fff; }
+
+  .lead {
+    font-size: 11.5pt; background: #f4f8fb; border-left: 4px solid #1c7d8c;
+    padding: 12px 16px; border-radius: 6px; margin: 18px 0;
+  }
+
+  /* Step list */
+  ol.steps { counter-reset: step; list-style: none; padding-left: 0; margin: 6px 0; }
+  ol.steps > li {
+    position: relative; padding: 8px 0 8px 44px; margin: 6px 0; break-inside: avoid;
+  }
+  ol.steps > li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 7px; width: 30px; height: 30px;
+    background: #14507a; color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11pt;
+  }
+  ol.steps b { color: #0f2747; }
+
+  /* Diagram */
+  .flow { display: flex; align-items: stretch; gap: 6px; margin: 14px 0 8px; }
+  .node {
+    flex: 1; background: #f4f8fb; border: 1.5px solid #cfddea; border-radius: 8px;
+    padding: 10px 8px; text-align: center; font-size: 8.6pt; color: #213040;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .node b { font-size: 9.4pt; color: #0f2747; display: block; margin-bottom: 2px; }
+  .arrow { display: flex; align-items: center; color: #1c7d8c; font-weight: 700; font-size: 14pt; }
+  .notes { font-size: 9.2pt; color: #5b6675; margin-top: 6px; }
+  .notes b { color: #1c7d8c; }
+
+  /* Tech table */
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10pt; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e6eaf0; vertical-align: top; }
+  th { background: #f1f5f9; color: #0f2747; font-size: 9.5pt; }
+  td b { color: #143a5a; }
+
+  /* Results cards */
+  .cards { display: flex; gap: 10px; margin: 12px 0; }
+  .card {
+    flex: 1; background: #f4f8fb; border: 1px solid #d9e4ee; border-radius: 8px;
+    padding: 12px; text-align: center; break-inside: avoid;
+  }
+  .card .big { font-size: 18pt; font-weight: 800; color: #14507a; }
+  .card .lbl { font-size: 9pt; color: #5b6675; margin-top: 2px; }
+
+  figure { margin: 12px 0; break-inside: avoid; }
+  figure img {
+    display: block; max-width: 100%; max-height: 198mm; width: auto; margin: 0 auto;
+    border: 1px solid #d9e4ee; border-radius: 8px;
+  }
+  figcaption { font-size: 9pt; color: #5b6675; margin-top: 5px; text-align: center; }
+
+  .run { background: #0f1b2d; border-radius: 8px; padding: 12px 18px; margin: 12px 0; break-inside: avoid; }
+  .run .cmd { display: flex; align-items: baseline; gap: 16px; padding: 5px 0; }
+  .run code { color: #7fe3c4; font-family: Menlo, Consolas, monospace; font-size: 10pt; min-width: 130px; }
+  .run .cmd span { color: #c2d4e3; font-size: 9.7pt; }
+
+  .foot {
+    margin-top: 26px; padding-top: 12px; border-top: 2px solid #e6eaf0;
+    font-size: 10pt; color: #5b6675;
+  }
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <h1>TickStream</h1>
+    <p class="tag">A real time streaming data platform for live crypto markets, built to run on a single laptop with one command, using only free public data.</p>
+    <p class="by">by <b>Linga Reddy Gudisha</b></p>
+    <div class="links">
+      <span>Code: <b>github.com/lithin45/tickstream-streaming-lakehouse</b></span>
+      <span>Live demo: <b>add your Streamlit link here</b></span>
+    </div>
+  </div>
+
+  <p class="lead">TickStream is a small but complete data platform. It listens to a live feed of cryptocurrency trades, does the kind of real time number crunching that trading desks rely on, checks every record for quality problems, and saves clean, ready to query tables that feed a live dashboard. The whole thing runs with one command, uses only free public data, and needs no accounts and no secret keys. I built it to show that I can design and ship a production shaped data system from start to finish, not just a notebook.</p>
+
+  <section>
+    <h2>The problem it solves</h2>
+    <p>Modern companies do not wait for data. Trading firms, ride sharing apps, banks watching for fraud, and streaming services all act on information the moment it arrives. The engineering behind that is called real time data processing, and it is one of the most in demand skills in data engineering today. TickStream is my hands on version of that whole stack, sized so it runs anywhere and anyone can watch it work in a couple of minutes.</p>
+  </section>
+
+  <section>
+    <h2>How it works, following one trade from start to finish</h2>
+    <ol class="steps">
+      <li><b>A trade happens on the exchange.</b> A free public feed from Coinbase broadcasts every trade and price change. My program listens and writes each one into a single tidy format.</li>
+      <li><b>It lands on a fast queue.</b> Everything goes onto a streaming message system that keeps the flood of messages in order, so nothing is lost even when thousands arrive every minute.</li>
+      <li><b>A live calculator keeps running totals.</b> As trades stream by, it works out, for each coin, the average price weighted by trade size, the total volume, the number of trades, and the gap between buy and sell prices. It does this in rolling one minute and five minute buckets, and it handles trades that arrive late or out of order.</li>
+      <li><b>The data is filed from messy to clean.</b> I use a three layer pattern. The first layer is the raw data exactly as it arrived. The second is cleaned and free of duplicates. The third is the final polished summary tables. The cleaning rules are written in plain SQL.</li>
+      <li><b>The clean tables remember their own history.</b> The final tables use a modern format that can show exactly what the data looked like at an earlier moment. People call this time travel, and it is useful for audits and debugging.</li>
+      <li><b>A quality inspector guards the gate.</b> Before any record reaches the final tables, a data contract checks it. Price must be positive, sizes cannot be negative, the coin must be one I track. Anything that fails is set aside in a quarantine area, so it never reaches the results.</li>
+      <li><b>Promises are checked automatically.</b> The system makes three promises and proves them on every run. Results are ready in under sixty seconds, it captures at least ninety nine percent of every minute for every coin, and zero bad records reach the final tables. On the latest run it passed all three, with results ready in about thirty seconds and full coverage.</li>
+      <li><b>A live dashboard shows it all.</b> A web page plots the prices, volumes, and spreads for each coin, shows the quality scorecard, and lets you look back at an earlier snapshot.</li>
+    </ol>
+    <p class="muted">One more piece I am proud of: I recorded a short slice of the real market into a file, so the entire system can be replayed offline with no internet and no keys. Anyone can reproduce my results exactly, and my automated tests run against that recording instead of a live connection, so they give the same answer every time.</p>
+  </section>
+
+  <section>
+    <h2>The shape of the system</h2>
+    <div class="flow">
+      <div class="node"><b>Live feed</b>Coinbase public trades and prices</div>
+      <div class="arrow">&rarr;</div>
+      <div class="node"><b>Streaming queue</b>Redpanda, Kafka compatible</div>
+      <div class="arrow">&rarr;</div>
+      <div class="node"><b>Live windows</b>Quix Streams, 1m and 5m</div>
+      <div class="arrow">&rarr;</div>
+      <div class="node"><b>Lakehouse</b>raw, clean, gold (Apache Iceberg)</div>
+      <div class="arrow">&rarr;</div>
+      <div class="node"><b>SQL and UI</b>DuckDB and a Streamlit dashboard</div>
+    </div>
+    <p class="notes"><b>Quality:</b> bad records are quarantined before they ever reach the gold layer. &nbsp; <b>Reproducible:</b> a recorded sample lets the whole pipeline replay offline, with no network.</p>
+  </section>
+
+  <section>
+    <h2>The tools I used, and why</h2>
+    <table>
+      <tr><th>Tool</th><th>What it does here</th></tr>
+      <tr><td><b>Redpanda</b></td><td>The streaming queue. It speaks the industry standard Kafka language but runs as one lightweight piece, so real streaming works on a laptop.</td></tr>
+      <tr><td><b>Quix Streams</b></td><td>The real time calculator. A Python library that processes data as it flows, which is what computes the rolling price and volume numbers.</td></tr>
+      <tr><td><b>Apache Iceberg</b></td><td>The smart table format for the gold layer. It gives history, time travel, and safe changes to the table over time.</td></tr>
+      <tr><td><b>dbt with DuckDB</b></td><td>The SQL engine and transformation tool. It turns the raw layers into clean tables using readable SQL, with no heavy infrastructure.</td></tr>
+      <tr><td><b>Pandera</b></td><td>The data contract. It defines what a valid record looks like and separates the good records from the bad ones.</td></tr>
+      <tr><td><b>Streamlit and Plotly</b></td><td>The dashboard. They turn the gold tables into live, interactive charts.</td></tr>
+      <tr><td><b>Docker, pytest, GitHub Actions</b></td><td>Packaging and testing. The whole stack starts with one command and is checked automatically on every change.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>What it achieves</h2>
+    <div class="cards">
+      <div class="card"><div class="big">about 30s</div><div class="lbl">time from a trade arriving to it showing in the gold tables (target under 60s)</div></div>
+      <div class="card"><div class="big">100%</div><div class="lbl">of expected one minute windows captured for every coin (target 99 percent or more)</div></div>
+      <div class="card"><div class="big">0</div><div class="lbl">bad records reaching the gold tables (they are quarantined instead)</div></div>
+      <div class="card"><div class="big">67</div><div class="lbl">automated tests, all passing, run offline against the recording</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What this project says about me</h2>
+    <p>Building TickStream meant making real engineering decisions and tying many moving parts into one reliable system. It shows I can work across the whole data engineering stack: live streaming, storage, SQL modeling, data quality, testing, packaging, and visualization. More than any single tool, it shows I can take a broad goal and deliver something that actually runs, that I can explain in plain language, and that someone else can pick up and reproduce in minutes.</p>
+  </section>
+
+  <section>
+    <h2>Run it yourself in three commands</h2>
+    <p>Anyone with Docker can reproduce everything in this document, offline, in a couple of minutes. No accounts, no keys, no cloud.</p>
+    <div class="run">
+      <div class="cmd"><code>make up</code><span>starts the streaming broker</span></div>
+      <div class="cmd"><code>make replay</code><span>builds the whole pipeline from the recorded sample and checks the quality promises</span></div>
+      <div class="cmd"><code>make dashboard</code><span>opens the live dashboard in your browser</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The dashboard</h2>
+    <figure>
+      <img src="dashboard.png" alt="TickStream dashboard">
+      <figcaption>The live dashboard: the quality scorecard at the top, then per coin price, volume, and spread, and a time travel panel at the bottom.</figcaption>
+    </figure>
+  </section>
+
+  <div class="foot">
+    <p><b>Linga Reddy Gudisha</b> &nbsp;&middot;&nbsp; Code and full write up: github.com/lithin45/tickstream-streaming-lakehouse &nbsp;&middot;&nbsp; Thanks for reading.</p>
+  </div>
+
+</body>
+</html>
