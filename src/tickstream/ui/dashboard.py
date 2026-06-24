@@ -97,13 +97,13 @@ if result.get("sla_passed") is not None:
         "All SLAs pass" if result["sla_passed"] else "SLA breach"
     )
 
-one_min = gold[gold["window_size"] == "1m"].sort_values("window_start")
+one_min = gold[gold["window_size"] == "1m"].sort_values(["symbol", "window_start"])
 if one_min.empty:
     st.warning("No 1 minute windows yet. Run `make replay` to build the data.")
     st.stop()
 
 st.subheader("Latest 1 minute metrics per symbol")
-latest = one_min.groupby("symbol").tail(1)
+latest = one_min.groupby("symbol").tail(1).sort_values("symbol")
 cols = st.columns(len(latest))
 for col, (_, row) in zip(cols, latest.iterrows(), strict=False):
     col.metric(

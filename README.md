@@ -8,6 +8,8 @@ TickStream ingests a live crypto market data feed, computes rolling microstructu
 
 > **Status: complete (all 6 phases).** The whole pipeline is reproducible offline with no network. `make replay` feeds a committed sample of real Coinbase market data through the entire stack and proves it, deterministically. There is a live demo dashboard too (see [Dashboard](#dashboard)).
 
+![TickStream dashboard: SLA scorecard, per symbol VWAP, volume and spread, and Iceberg time travel](portfolio_assets/dashboard.png)
+
 ---
 
 ## Architecture
