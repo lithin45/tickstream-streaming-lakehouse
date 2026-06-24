@@ -41,6 +41,5 @@ dbt/.user.yml
 .env
 .env.local
 
-# Local Claude Code settings (personal, not shared)
-.claude/settings.local.json
-.claude/launch.json
+# Local editor and tooling config (personal, not shared)
+.claude/

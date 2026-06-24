@@ -1,0 +1,12 @@
+{
+  "replayed_events": 7005,
+  "bronze_rows": 7005,
+  "window_rows": 42,
+  "gold_rows": 27,
+  "gold_snapshots": 2,
+  "quarantined": 0,
+  "latency_p95_s": 30.326,
+  "completeness_pct": 100.0,
+  "gold_violations": 0,
+  "sla_passed": true
+}
