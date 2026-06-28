@@ -43,7 +43,6 @@ quality = [
 ui = [
     "streamlit>=1.36",
     "duckdb>=1.0",
-    "plotly>=5.22",
     "pandas>=2.2",
 ]
 # Convenience meta-extra installing everything (used by the dev image / local dev).

@@ -1203,19 +1203,6 @@ wheels = [
 ]
 
 [[package]]
-name = "plotly"
-version = "6.8.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "narwhals" },
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/94/fd/d72c292d78aadb93d1a9bcd76bf3c678271040c7cf10abe5788b33040a39/plotly-6.8.0.tar.gz", hash = "sha256:e088e7ddc68d4f70e3d66659224727a45296d71d2b8284181862d3d8f1f0d88f", size = 6915161, upload-time = "2026-06-03T18:33:40.226Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/14/abe5ce876ab5b66ee3c691bf537fcd43d037aea55d447aacf74630a8f31e/plotly-6.8.0-py3-none-any.whl", hash = "sha256:13c5c4a0f70b74cab1913eda0de49b826df5931708eb6f9c3010040614700ec8", size = 9902055, upload-time = "2026-06-03T18:33:34.26Z" },
-]
-
-[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1927,7 +1914,6 @@ all = [
     { name = "duckdb" },
     { name = "pandas" },
     { name = "pandera" },
-    { name = "plotly" },
     { name = "pyarrow" },
     { name = "pyiceberg", extra = ["pyarrow", "sql-sqlite"] },
     { name = "quixstreams" },
@@ -1953,7 +1939,6 @@ quality = [
 ui = [
     { name = "duckdb" },
     { name = "pandas" },
-    { name = "plotly" },
     { name = "streamlit" },
 ]
 
@@ -1975,7 +1960,6 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'quality'", specifier = ">=2.2" },
     { name = "pandas", marker = "extra == 'ui'", specifier = ">=2.2" },
     { name = "pandera", marker = "extra == 'quality'", specifier = ">=0.20" },
-    { name = "plotly", marker = "extra == 'ui'", specifier = ">=5.22" },
     { name = "pyarrow", marker = "extra == 'lake'", specifier = ">=16.0" },
     { name = "pyarrow", marker = "extra == 'processing'", specifier = ">=16.0" },
     { name = "pydantic", specifier = ">=2.7,<3.0" },

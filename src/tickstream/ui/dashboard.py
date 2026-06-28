@@ -18,7 +18,6 @@ import os
 from pathlib import Path
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 # dashboard.py lives at src/tickstream/ui/ ; the committed snapshot is at the repo root.
@@ -114,21 +113,17 @@ for col, (_, row) in zip(cols, latest.iterrows(), strict=False):
 
 trades = one_min[one_min["trade_count"] > 0]
 ticks = one_min[one_min["ticker_count"] > 0]
-st.plotly_chart(
-    px.line(trades, x="window_start", y="vwap", color="symbol", title="VWAP (1 minute windows)"),
-    use_container_width=True,
-)
+
+st.markdown("**VWAP (1 minute windows)**")
+st.line_chart(trades, x="window_start", y="vwap", color="symbol", height=320)
+
 left, right = st.columns(2)
-left.plotly_chart(
-    px.bar(trades, x="window_start", y="trade_volume", color="symbol", title="Trade volume"),
-    use_container_width=True,
-)
-right.plotly_chart(
-    px.line(
-        ticks, x="window_start", y="avg_spread", color="symbol", title="Average bid/ask spread"
-    ),
-    use_container_width=True,
-)
+with left:
+    st.markdown("**Trade volume**")
+    st.bar_chart(trades, x="window_start", y="trade_volume", color="symbol", height=300)
+with right:
+    st.markdown("**Average bid/ask spread**")
+    st.line_chart(ticks, x="window_start", y="avg_spread", color="symbol", height=300)
 
 st.subheader("🕰️ Apache Iceberg time travel")
 st.write(

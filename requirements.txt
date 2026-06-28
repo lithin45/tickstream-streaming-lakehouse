@@ -1,7 +1,7 @@
 # Minimal dependencies for deploying ONLY the dashboard to Streamlit Community Cloud.
 # The hosted dashboard runs in demo mode off the committed snapshot in dashboard_data/,
-# so it needs no broker, no Iceberg/DuckDB, and no network access.
+# so it needs no broker, no Iceberg/DuckDB, and no network access. The charts use
+# Streamlit's built in charting, so only streamlit and pandas are required.
 # (The full project is managed with uv; see pyproject.toml.)
 streamlit>=1.36
-plotly>=5.22
 pandas>=2.2
