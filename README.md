@@ -6,7 +6,7 @@ By **Linga Reddy Gudisha**.
 
 TickStream ingests a live crypto market data feed, computes rolling microstructure analytics with windowed stream processing, enforces data quality contracts (quarantining bad records), and lands query ready lakehouse tables. The flow is Redpanda, then Quix Streams windowing, then bronze and silver Parquet, then a gold Apache Iceberg table, then DuckDB SQL and a Streamlit dashboard.
 
-> **Status: complete (all 6 phases).** The whole pipeline is reproducible offline with no network. `make replay` feeds a committed sample of real Coinbase market data through the entire stack and proves it, deterministically. There is a live demo dashboard too (see [Dashboard](#dashboard)).
+> **Status: complete (all 6 phases).** The whole pipeline is reproducible offline with no network. `make replay` feeds a committed sample of real Coinbase market data through the entire stack and proves it, deterministically. There is a [live demo dashboard](https://cryptostreaming.streamlit.app/) too.
 
 ![TickStream dashboard: SLA scorecard, per symbol VWAP, volume and spread, and Iceberg time travel](portfolio_assets/dashboard.png)
 
@@ -189,7 +189,7 @@ make dashboard   # serve at http://localhost:8502  (host)
 docker compose --profile dashboard up   # http://localhost:8502
 ```
 
-**Live demo:** the hosted version runs in a safe demo mode off a committed snapshot in `dashboard_data/`, so it needs no broker and connects to nothing external. _(Add your Streamlit Community Cloud URL here once deployed.)_
+**Live demo: [cryptostreaming.streamlit.app](https://cryptostreaming.streamlit.app/)** — the hosted version runs in a safe demo mode off a committed snapshot in `dashboard_data/`, so it needs no broker and connects to nothing external.
 
 ---
 
